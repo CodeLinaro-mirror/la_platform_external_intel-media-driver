@@ -225,7 +225,7 @@ MOS_STATUS AvcEncodeBRC::AllocateResources()
     allocParamsForBufferLinear.dwBytes = sizeof(VdencBrcPakMmio);
     allocParamsForBufferLinear.pBufName = "VDENC BRC PAK MMIO Buffer";
     allocParamsForBufferLinear.ResUsageType = MOS_HW_RESOURCE_USAGE_ENCODE_INTERNAL_READ_WRITE_CACHE;
-    m_basicFeature->m_recycleBuf->RegisterResource(VdencBrcPakMmioBuffer, allocParamsForBufferLinear, 1);
+    ENCODE_CHK_STATUS_RETURN(m_basicFeature->m_recycleBuf->RegisterResource(VdencBrcPakMmioBuffer, allocParamsForBufferLinear, 1));
 
     // Debug buffer
     allocParamsForBufferLinear.dwBytes  = MOS_ALIGN_CEIL(brcSettings.vdencBrcDbgBufferSize, CODECHAL_PAGE_SIZE);
@@ -338,8 +338,12 @@ MOS_STATUS AvcEncodeBRC::SetDmemForInit(void *params)
         hucVdencBrcInitDmem->INIT_GopP_U16 = intraPeriod / avcSeqParams->GopRefDist;
         hucVdencBrcInitDmem->INIT_GopB_U16 = (avcSeqParams->GopRefDist - 1) * hucVdencBrcInitDmem->INIT_GopP_U16;
 
-        // For now AVC support only GOP4 and GOP8 golden gops
-        if (IsBPyramidWithGoldenBGOP())
+        if (avcSeqParams->GopRefDist >= avcSeqParams->GopPicSize && avcSeqParams->GopPicSize > 1)
+        {
+            hucVdencBrcInitDmem->INIT_ExtGopP_U16 = 1;
+            hucVdencBrcInitDmem->INIT_ExtGopB_U16 = avcSeqParams->GopPicSize - 2;
+        }
+        else if (IsBPyramidWithGoldenBGOP()) // For now AVC support only GOP4 and GOP8 golden gops
         {
             auto    dmem     = hucVdencBrcInitDmem;
             uint8_t BGopSize = (uint8_t)avcSeqParams->GopRefDist;
@@ -477,8 +481,16 @@ MOS_STATUS AvcEncodeBRC::SetDmemForInit(void *params)
     if (avcSeqParams->FrameSizeTolerance == EFRAMESIZETOL_LOW) // Sliding Window BRC
     {
         hucVdencBrcInitDmem->INIT_SlidingWidowRCEnable_U8 = 1;
-        hucVdencBrcInitDmem->INIT_SlidingWindowSize_U8 = (uint8_t)(avcSeqParams->FramesPer100Sec / 100);
-        hucVdencBrcInitDmem->INIT_SlidingWindowMaxRateRatio_U8 = 120;
+        if (avcSeqParams->RateControlMethod == RATECONTROL_CBR && avcSeqParams->TargetBitRate != 0)
+        {
+            hucVdencBrcInitDmem->INIT_SlidingWindowSize_U8         = MOS_MIN((uint8_t)avcSeqParams->SlidingWindowSize, 60);
+            hucVdencBrcInitDmem->INIT_SlidingWindowMaxRateRatio_U8 = (uint8_t)((uint64_t)avcSeqParams->MaxBitRatePerSlidingWindow * 100 / avcSeqParams->TargetBitRate);
+        }
+        else
+        {
+            hucVdencBrcInitDmem->INIT_SlidingWindowSize_U8         = (uint8_t)(avcSeqParams->FramesPer100Sec / 100);
+            hucVdencBrcInitDmem->INIT_SlidingWindowMaxRateRatio_U8 = 120;
+        }
     }
 
     MOS_SecureMemcpy(hucVdencBrcInitDmem->INIT_EstRateThreshP0_U8, 7 * sizeof(uint8_t),
