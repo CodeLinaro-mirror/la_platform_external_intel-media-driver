@@ -1588,15 +1588,19 @@ mos_gem_bo_free(struct mos_linux_bo *bo)
     CHK_CONDITION(bufmgr_gem == nullptr, "bufmgr_gem == nullptr\n", );
 
     if (bo_gem->mem_virtual) {
-        VG(VALGRIND_FREELIKE_BLOCK(bo_gem->mem_virtual, 0));
+        VG(VALGRIND_MAKE_MEM_NOACCESS(bo_gem->mem_virtual, 0));
         drm_munmap(bo_gem->mem_virtual, bo_gem->bo.size);
+        bo_gem->mem_virtual = nullptr;
     }
     if (bo_gem->gtt_virtual) {
+        VG(VALGRIND_MAKE_MEM_NOACCESS(bo_gem->gtt_virtual, 0));
         drm_munmap(bo_gem->gtt_virtual, bo_gem->bo.size);
+        bo_gem->gtt_virtual = nullptr;
     }
     if (bo_gem->mem_wc_virtual) {
-        VG(VALGRIND_FREELIKE_BLOCK(bo_gem->mem_wc_virtual, 0));
+        VG(VALGRIND_MAKE_MEM_NOACCESS(bo_gem->mem_wc_virtual, 0));
         drm_munmap(bo_gem->mem_wc_virtual, bo_gem->bo.size);
+        bo_gem->mem_wc_virtual = nullptr;
     }
 
     if(bufmgr_gem->bufmgr.bo_wait_rendering && mos_gem_bo_busy(bo))
@@ -3454,13 +3458,15 @@ mos_gem_bo_set_softpin(MOS_LINUX_BO *bo)
 }
 
 static struct mos_linux_bo *
-mos_gem_bo_create_from_prime(struct mos_bufmgr *bufmgr, int prime_fd, int size)
+mos_gem_bo_create_from_prime(struct mos_bufmgr *bufmgr, struct mos_drm_bo_alloc_prime *alloc_prime)
 {
     struct mos_bufmgr_gem *bufmgr_gem = (struct mos_bufmgr_gem *) bufmgr;
     int ret;
     uint32_t handle;
     struct mos_bo_gem *bo_gem;
     struct drm_i915_gem_get_tiling get_tiling;
+    int prime_fd = alloc_prime->prime_fd;
+    int size = alloc_prime->size;
     drmMMListHead *list;
 
     pthread_mutex_lock(&bufmgr_gem->lock);
@@ -3511,7 +3517,7 @@ mos_gem_bo_create_from_prime(struct mos_bufmgr *bufmgr, int prime_fd, int size)
     bo_gem->cpu_cacheable = true;
     atomic_set(&bo_gem->refcount, 1);
 
-    bo_gem->name = "prime";
+    bo_gem->name = alloc_prime->name;
     bo_gem->validate_index = -1;
     bo_gem->reloc_tree_fences = 0;
     bo_gem->used_as_reloc_target = false;
@@ -5123,7 +5129,7 @@ static int mos_bufmgr_query_device_blob(struct mos_bufmgr *bufmgr, MEDIA_SYSTEM_
             gfx_info->MaxEuPerSubSlice = hw_info[i+2];
         }
 
-        if (INTEL_HWCONFIG_L3_CACHE_SIZE_IN_KB == hw_info[i])
+        if (INTEL_HWCONFIG_DEPRECATED_L3_CACHE_SIZE_IN_KB == hw_info[i])
         {
             if (hw_info[i+1] != 1)
             {
