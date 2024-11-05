@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2018-2022, Intel Corporation
+* Copyright (c) 2018-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -411,10 +411,12 @@ protected:
     //!         Bitstream Size
     //! \param  [in] offset
     //!         Bitstream Offset 
+    //! \param  [in] attrName
+    //!         Bitstream Name
     //! \return MOS_STATUS
     //!         MOS_STATUS_SUCCESS if success, else fail reason
     //!
-    virtual MOS_STATUS DumpBitstream(PMOS_RESOURCE pBitstream, uint32_t size, uint32_t offset);
+    virtual MOS_STATUS DumpBitstream(PMOS_RESOURCE pBitstream, uint32_t size, uint32_t offset, const char* attrName = nullptr);
 
     //!
     //! \brief  Add delay for dump render targets
@@ -471,7 +473,7 @@ protected:
     //! \return MOS_STATUS
     //!         MOS_STATUS_SUCCESS if success, else fail reason
     //!
-    MOS_STATUS StatusCheck();
+    virtual MOS_STATUS StatusCheck();
 #endif
 
 protected:
@@ -494,6 +496,7 @@ protected:
     MOS_STATUS CreateSubPacketManager(CodechalSetting* codecSettings);
 
     friend class DecodeSubPipelineManager;
+    friend class DecodeStreamOut;
 
     CodechalHwInterfaceNext *m_hwInterface        = nullptr;  //!< Codechal HwInterface
     CodechalOcaDumper      *m_pCodechalOcaDumper = nullptr;

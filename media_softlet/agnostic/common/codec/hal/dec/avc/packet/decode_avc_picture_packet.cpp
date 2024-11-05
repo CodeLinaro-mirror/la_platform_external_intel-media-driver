@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2020-2022, Intel Corporation
+* Copyright (c) 2020-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -593,7 +593,7 @@ MOS_STATUS AvcDecodePicPkt::AddAllCmds_MFX_QM_STATE(PMOS_COMMAND_BUFFER cmdBuffe
             qMatrix[i * 16 + ii] = iqMatrix->List4x4[i][ii];
         }
     }
-    m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer);
+    DECODE_CHK_STATUS(m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer));
 
     params.qmType = m_avcBasicFeature->avcQmInter4x4;
     for (auto i = 3; i < 6; i++)
@@ -603,21 +603,21 @@ MOS_STATUS AvcDecodePicPkt::AddAllCmds_MFX_QM_STATE(PMOS_COMMAND_BUFFER cmdBuffe
             qMatrix[(i - 3) * 16 + ii] = iqMatrix->List4x4[i][ii];
         }
     }
-    m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer);
+    DECODE_CHK_STATUS(m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer));
 
     params.qmType = m_avcBasicFeature->avcQmIntra8x8;
     for (auto ii = 0; ii < 64; ii++)
     {
         qMatrix[ii] = iqMatrix->List8x8[0][ii];
     }
-    m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer);
+    DECODE_CHK_STATUS(m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer));
 
     params.qmType = m_avcBasicFeature->avcQmInter8x8;
     for (auto ii = 0; ii < 64; ii++)
     {
         qMatrix[ii] = iqMatrix->List8x8[1][ii];
     }
-    m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer);
+    DECODE_CHK_STATUS(m_mfxItf->MHW_ADDCMD_F(MFX_QM_STATE)(cmdBuffer));
 
     return MOS_STATUS_SUCCESS;
 }
@@ -646,26 +646,20 @@ MOS_STATUS AvcDecodePicPkt::DumpResources(uint32_t mvBufferSize) const
                 CodechalDbgAttr::attrDecodeReferenceSurfaces,
                 refSurfName.c_str()));
 
-            if (&mvParam.presAvcDmvBuffers[n+1] != nullptr)
-            {
-                std::string mvBufDumpName = "_DEC_Ref_MV_" + std::to_string(n);
-                DECODE_CHK_STATUS(debugInterface->DumpBuffer(
-                    &mvParam.presAvcDmvBuffers[n+1],
-                    CodechalDbgAttr::attrMvData,
-                    mvBufDumpName.c_str(),
-                    mvBufferSize));
-            }
+            std::string mvBufDumpName = "_DEC_Ref_MV_" + std::to_string(n);
+            DECODE_CHK_STATUS(debugInterface->DumpBuffer(
+                &mvParam.presAvcDmvBuffers[n+1],
+                CodechalDbgAttr::attrMvData,
+                mvBufDumpName.c_str(),
+                mvBufferSize));
         }
     }
 
-    if (&mvParam.presAvcDmvBuffers[0] != nullptr)
-    {
-        DECODE_CHK_STATUS(debugInterface->DumpBuffer(
-            &mvParam.presAvcDmvBuffers[0],
-            CodechalDbgAttr::attrMvData,
-            "DEC_Cur_MV_",
-            mvBufferSize));
-    }
+    DECODE_CHK_STATUS(debugInterface->DumpBuffer(
+        &mvParam.presAvcDmvBuffers[0],
+        CodechalDbgAttr::attrMvData,
+        "DEC_Cur_MV_",
+        mvBufferSize));
 
     return MOS_STATUS_SUCCESS;
 }

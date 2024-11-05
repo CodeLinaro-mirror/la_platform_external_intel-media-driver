@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2018-2023, Intel Corporation
+* Copyright (c) 2018-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -218,8 +218,34 @@ MOS_STATUS VpPipeline::UserFeatureReport()
             {
                 m_reporting->GetFeatures().rtOldCacheSetting = (uint8_t)(m_vpMhwInterface.m_renderHal->oldCacheSettingForTargetSurface);
             }
+            if (m_reporting->GetFeatures().isL03DLut)
+            {
+                VP_PUBLIC_NORMALMESSAGE("VP L0 3DLut Enabled");
+                ReportUserSettingForDebug(
+                    m_userSettingPtr,
+                    __MEDIA_USER_FEATURE_VALUE_VP_L0_3DLUT_ENABLED,
+                    1,
+                    MediaUserSetting::Group::Sequence);
+            }
 #endif
         }
+#if (_DEBUG || _RELEASE_INTERNAL)
+        if (m_reporting->GetFeatures().isL0FC)
+        {
+            VP_PUBLIC_NORMALMESSAGE("VP L0 FC Enabled");
+            ReportUserSettingForDebug(
+                m_userSettingPtr,
+                __MEDIA_USER_FEATURE_VALUE_VP_L0_FC_ENABLED,
+                1,
+                MediaUserSetting::Group::Sequence);
+
+            ReportUserSettingForDebug(
+                m_userSettingPtr,
+                __MEDIA_USER_FEATURE_VALUE_VP_L0_FC_REPORT,
+                m_reporting->GetFeatures().diffLogL0FC,
+                MediaUserSetting::Group::Sequence);
+        }
+#endif
 
         m_reporting->GetFeatures().VPApogeios = m_currentFrameAPGEnabled;
     }
@@ -359,6 +385,14 @@ MOS_STATUS VpPipeline::Init(void *mhwInterface)
         VP_PUBLIC_NORMALMESSAGE("Create GpuContext for Compute/Render (PacketId: %d).", packetId);
         VP_PUBLIC_CHK_STATUS_RETURN(PacketPipe::SwitchContext(packetId, m_scalability,
             m_mediaContext, MOS_VE_SUPPORTED(m_osInterface), m_numVebox));
+
+        // create SinglePipe GpuContext for multi Vebox system to avoid first frame long latency issue
+        if (m_numVebox > 1 && !(m_vpSettings && m_vpSettings->clearVideoViewMode))
+        {
+            VP_PUBLIC_NORMALMESSAGE("Create Single Pipe GpuContext for Vebox.");
+            VP_PUBLIC_CHK_STATUS_RETURN(PacketPipe::SwitchContext(VP_PIPELINE_PACKET_VEBOX, m_scalability,
+                m_mediaContext, MOS_VE_SUPPORTED(m_osInterface), 1));
+        }
     }
 
     return MOS_STATUS_SUCCESS;
@@ -375,6 +409,71 @@ bool VpPipeline::IsVeboxSfcFormatSupported(MOS_FORMAT formatInput, MOS_FORMAT fo
         return false;
     }
     return featureManagerNext->IsVeboxSfcFormatSupported(formatInput, formatOutput);
+}
+
+MOS_STATUS VpPipeline::UpdateRectForNegtiveDstTopLeft(PVP_PIPELINE_PARAMS params)
+{
+    VP_FUNC_CALL();
+
+    for (uint32_t index = 0; (index < params->uSrcCount) && (index < VPHAL_MAX_SOURCES); index++)
+    {
+        PVPHAL_SURFACE pcSrc = params->pSrc[index];
+
+        if (pcSrc)
+        {
+            if (pcSrc->rcDst.top < 0 || pcSrc->rcDst.left < 0)
+            {
+                VP_PUBLIC_NORMALMESSAGE("negtive value on rcDst top or left, top: %d, left: %d.", pcSrc->rcDst.top, pcSrc->rcDst.left);
+                bool isVerticalRotation = VpUtils::IsVerticalRotation(pcSrc->Rotation);
+
+                uint32_t srcHeight = pcSrc->rcSrc.bottom - pcSrc->rcSrc.top;
+                uint32_t srcWidth  = pcSrc->rcSrc.right - pcSrc->rcSrc.left;
+                uint32_t dstHeight = pcSrc->rcDst.bottom - pcSrc->rcDst.top;
+                uint32_t dstWidth  = pcSrc->rcDst.right - pcSrc->rcDst.left;
+
+                float fScaleX = isVerticalRotation ? (float)dstHeight / (float)srcWidth : (float)dstWidth / (float)srcWidth;
+                float fScaleY = isVerticalRotation ? (float)dstWidth / (float)srcHeight : (float)dstHeight / (float)srcHeight;
+
+                if (pcSrc->rcDst.top < 0)
+                {
+                    pcSrc->rcDst.top = 0;
+
+                    if (isVerticalRotation)
+                    {
+                        uint32_t newDstHight = pcSrc->rcDst.bottom;
+                        uint32_t newSrcWidth = MOS_UF_ROUND(newDstHight / fScaleX);
+                        pcSrc->rcSrc.left    = pcSrc->rcSrc.right - newSrcWidth;
+                    }
+                    else
+                    {
+                        uint32_t newDstHight = pcSrc->rcDst.bottom;
+                        uint32_t newSrcHight = MOS_UF_ROUND(newDstHight / fScaleY);
+                        pcSrc->rcSrc.top     = pcSrc->rcSrc.bottom - newSrcHight;
+                    }
+                }
+                if (pcSrc->rcDst.left < 0)
+                {
+                    pcSrc->rcDst.left = 0;
+                    if (isVerticalRotation)
+                    {
+                        uint32_t newDstWidth = pcSrc->rcDst.right;
+                        uint32_t newSrcHight = MOS_UF_ROUND(newDstWidth / fScaleY);
+                        pcSrc->rcSrc.top     = pcSrc->rcSrc.bottom - newSrcHight;
+                    }
+                    else
+                    {
+                        uint32_t newDstWidth = pcSrc->rcDst.right;
+                        uint32_t newSrcWidth = MOS_UF_ROUND(newDstWidth / fScaleX);
+                        pcSrc->rcSrc.left    = pcSrc->rcSrc.right - newSrcWidth;
+                    }
+                }
+                VP_PUBLIC_NORMALMESSAGE("updated source rectangle region: [%d,%d,%d,%d].", pcSrc->rcSrc.left, pcSrc->rcSrc.top, pcSrc->rcSrc.right, pcSrc->rcSrc.bottom);
+                VP_PUBLIC_NORMALMESSAGE("updated destination rectangle region: [%d,%d,%d,%d].", pcSrc->rcDst.left, pcSrc->rcDst.top, pcSrc->rcDst.right, pcSrc->rcDst.bottom);
+            }
+        }
+    }
+
+    return MOS_STATUS_SUCCESS;
 }
 
 MOS_STATUS VpPipeline::ExecuteVpPipeline()
@@ -398,13 +497,16 @@ MOS_STATUS VpPipeline::ExecuteVpPipeline()
         VP_PUBLIC_CHK_STATUS_RETURN(MOS_STATUS_INVALID_PARAMETER);
     }
 
-    MT_LOG2(MT_VP_FEATURE_GRAPH_EXECUTE_VPPIPELINE_START, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size(), MT_VP_FEATURE_GRAPH_FILTER_FRAMEID,m_vpPipeContexts[0]->GetFrameCounter());
-    VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Pipeline Start, swfilter count:%d, frameid:%d", (int64_t)swFilterPipes.size(), m_vpPipeContexts[0]->GetFrameCounter());
+    MT_LOG1(MT_VP_FEATURE_GRAPH_EXECUTE_VPPIPELINE_START, MT_NORMAL,
+            MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size());
+    VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Pipeline Start, swfilterPipes count:%d", (int64_t)swFilterPipes.size());
 
     if (PIPELINE_PARAM_TYPE_LEGACY == m_pvpParams.type)
     {
         params = m_pvpParams.renderParams;
         VP_PUBLIC_CHK_NULL_RETURN(params);
+        // Get the OptimizeCpuTiming flag from params
+        m_osInterface->bOptimizeCpuTiming = params->bOptimizeCpuTiming;
         // Set Pipeline status Table
         m_statusReport->SetPipeStatusReportParams(params, m_vpMhwInterface.m_statusTable);
 
@@ -423,6 +525,7 @@ MOS_STATUS VpPipeline::ExecuteVpPipeline()
                 VPHAL_SURF_DUMP_DDI_VP_BLT);
         }
 #endif
+        UpdateRectForNegtiveDstTopLeft(params);
         // Predication
         SetPredicationParams(params);
 
@@ -430,13 +533,16 @@ MOS_STATUS VpPipeline::ExecuteVpPipeline()
         VP_PUBLIC_CHK_STATUS_RETURN(eStatus);
         if (isBypassNeeded)
         {
-            MT_LOG3(MT_VP_FEATURE_GRAPH_EXECUTE_VPPIPELINE_END, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size(),
-                    MT_VP_FEATURE_GRAPH_FILTER_FRAMEID, m_vpPipeContexts[0]->GetFrameCounter(), MT_VP_FEATURE_GRAPH_FILTER_PIPELINEBYPASS, isBypassNeeded);
-            VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Pipeline End, swfilter count:%d, frameid:%d", (int64_t)swFilterPipes.size(), m_vpPipeContexts[0]->GetFrameCounter());
+            MT_LOG2(MT_VP_FEATURE_GRAPH_EXECUTE_VPPIPELINE_END, MT_NORMAL, 
+                    MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size(),
+                    MT_VP_FEATURE_GRAPH_FILTER_PIPELINEBYPASS, isBypassNeeded);
+            VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Pipeline End, swfilterPipes count:%d, isBypassNeeded:%d",
+                                     (int64_t)swFilterPipes.size(),
+                                     isBypassNeeded);
             return MOS_STATUS_SUCCESS;
         }
     }
-
+    VP_PUBLIC_CHK_STATUS_RETURN(UpdateFrameTracker());
     VP_PUBLIC_CHK_STATUS_RETURN(CreateSwFilterPipe(m_pvpParams, swFilterPipes));
 
     // Increment frame ID for performance measurement
@@ -444,32 +550,41 @@ MOS_STATUS VpPipeline::ExecuteVpPipeline()
 
     for (uint32_t pipeIdx = 0; pipeIdx < swFilterPipes.size(); pipeIdx++)
     {
-        MT_LOG3(MT_VP_FEATURE_GRAPH_EXECUTE_SINGLE_VPPIPELINE_START, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size(),
-                MT_VP_FEATURE_GRAPH_FILTER_FRAMEID, m_vpPipeContexts[0]->GetFrameCounter(), MT_VP_FEATURE_GRAPH_FILTER_PIPEID, pipeIdx);
-        VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Single Pipeline Start, swfilter count:%d, frameid:%d, pipeid:%d", (int64_t)swFilterPipes.size(), m_vpPipeContexts[0]->GetFrameCounter(), pipeIdx);
         auto &pipe = swFilterPipes[pipeIdx];
-        if (pipe)
-        {
-            pipe->AddRTLog();
-        }
         if (pipeIdx >= m_vpPipeContexts.size())
         {
             VP_PUBLIC_CHK_STATUS_RETURN(CreateSinglePipeContext());
         }
-
+        MT_LOG2(MT_VP_FEATURE_GRAPH_EXECUTE_SINGLE_VPPIPELINE_START, MT_NORMAL,
+                MT_VP_FEATURE_GRAPH_FILTER_FRAMEID, m_vpPipeContexts[pipeIdx]->GetFrameCounter(),
+                MT_VP_FEATURE_GRAPH_FILTER_PIPEID, pipeIdx);
+        VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Single Pipeline Start, frameid:%d, pipeid:%d",
+                                 m_vpPipeContexts[pipeIdx]->GetFrameCounter(),
+                                 pipeIdx);
+        if (pipe)
+        {
+            pipe->AddRTLog();
+        }
         auto &singlePipeCtx = m_vpPipeContexts[pipeIdx];
         VP_PUBLIC_CHK_NULL_RETURN(singlePipeCtx->GetVpResourceManager());
         VP_PUBLIC_CHK_STATUS_RETURN(m_vpInterface->SwitchResourceManager(singlePipeCtx->GetVpResourceManager()));
 
         VP_PUBLIC_CHK_STATUS_RETURN(ExecuteSingleswFilterPipe(singlePipeCtx, pipe, pPacketPipe, featureManagerNext));
-        MT_LOG3(MT_VP_FEATURE_GRAPH_EXECUTE_SINGLE_VPPIPELINE_END, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size(),
-                MT_VP_FEATURE_GRAPH_FILTER_FRAMEID, m_vpPipeContexts[0]->GetFrameCounter() - 1, MT_VP_FEATURE_GRAPH_FILTER_PIPEID, pipeIdx);
-        VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Single Pipeline End, swfilter count:%d, frameid:%d, pipeid:%d", (int64_t)swFilterPipes.size(), m_vpPipeContexts[0]->GetFrameCounter() - 1, pipeIdx);
+        // FrameCounter will be increased inside ExecuteSingleswFilterPipe, so m_vpPipeContexts[pipeIdx]->GetFrameCounter() - 1 is needed.
+        MT_LOG2(MT_VP_FEATURE_GRAPH_EXECUTE_SINGLE_VPPIPELINE_END, MT_NORMAL,
+                MT_VP_FEATURE_GRAPH_FILTER_FRAMEID, m_vpPipeContexts[pipeIdx]->GetFrameCounter() - 1,
+                MT_VP_FEATURE_GRAPH_FILTER_PIPEID, pipeIdx);
+        VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Single Pipeline End, frameid:%d, pipeid:%d",
+                                 m_vpPipeContexts[pipeIdx]->GetFrameCounter() - 1,
+                                 pipeIdx);
     }
 
-    MT_LOG3(MT_VP_FEATURE_GRAPH_EXECUTE_VPPIPELINE_END, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size(),
-            MT_VP_FEATURE_GRAPH_FILTER_FRAMEID, m_vpPipeContexts[0]->GetFrameCounter() - 1, MT_VP_FEATURE_GRAPH_FILTER_PIPELINEBYPASS, isBypassNeeded);
-    VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Pipeline End, swfilter count:%d, frameid:%d, isBypassNeeded:%d", (int64_t)swFilterPipes.size(), m_vpPipeContexts[0]->GetFrameCounter() - 1, isBypassNeeded);
+    MT_LOG2(MT_VP_FEATURE_GRAPH_EXECUTE_VPPIPELINE_END, MT_NORMAL,
+            MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)swFilterPipes.size(),
+            MT_VP_FEATURE_GRAPH_FILTER_PIPELINEBYPASS, isBypassNeeded);
+    VP_PUBLIC_NORMALMESSAGE("Feature Graph: Execute VP Pipeline End, swfilterPipes count:%d, isBypassNeeded:%d",
+                             (int64_t)swFilterPipes.size(),
+                             isBypassNeeded);
     return eStatus;
 }
 
@@ -634,6 +749,15 @@ MOS_STATUS VpPipeline::CreateSwFilterPipe(VP_PARAMS &params, std::vector<SwFilte
         return MOS_STATUS_NULL_POINTER;
     }
 
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS VpPipeline::UpdateFrameTracker()
+{
+    VP_FUNC_CALL();
+
+    VP_PUBLIC_CHK_NULL_RETURN(m_vpMhwInterface.m_vpPlatformInterface);
+    VP_PUBLIC_CHK_STATUS_RETURN(m_vpMhwInterface.m_vpPlatformInterface->InitFrameTracker());
     return MOS_STATUS_SUCCESS;
 }
 
