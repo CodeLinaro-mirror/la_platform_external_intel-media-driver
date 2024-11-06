@@ -38,19 +38,11 @@
 #include "media_ddi_encode_const.h"
 #include "drm_fourcc.h"
 
-#ifdef ANDROID
-#include <va/va_android.h>
-#endif
-
 const VAImageFormat m_supportedImageformatsXe_Lpm_Plus_Base[] =
 {   {VA_FOURCC_BGRA,           VA_LSB_FIRST,   32, 32, 0x0000ff00, 0x00ff0000, 0xff000000,  0x000000ff}, /* [31:0] B:G:R:A 8:8:8:8 little endian */
-    {VA_FOURCC_ARGB,           VA_LSB_FIRST,   32, 32, 0x00ff0000, 0x0000ff00, 0x000000ff,  0xff000000}, /* [31:0] A:R:G:B 8:8:8:8 little endian */
     {VA_FOURCC_RGBA,           VA_LSB_FIRST,   32, 32, 0xff000000, 0x00ff0000, 0x0000ff00,  0x000000ff}, /* [31:0] R:G:B:A 8:8:8:8 little endian */
-    {VA_FOURCC_ABGR,           VA_LSB_FIRST,   32, 32, 0x000000ff, 0x0000ff00, 0x00ff0000,  0xff000000}, /* [31:0] A:B:G:R 8:8:8:8 little endian */
     {VA_FOURCC_BGRX,           VA_LSB_FIRST,   32, 24, 0x0000ff00, 0x00ff0000, 0xff000000,  0},          /* [31:0] B:G:R:x 8:8:8:8 little endian */
-    {VA_FOURCC_XRGB,           VA_LSB_FIRST,   32, 24, 0x00ff0000, 0x0000ff00, 0x000000ff,  0},          /* [31:0] x:R:G:B 8:8:8:8 little endian */
     {VA_FOURCC_RGBX,           VA_LSB_FIRST,   32, 24, 0xff000000, 0x00ff0000, 0x0000ff00,  0},          /* [31:0] R:G:B:x 8:8:8:8 little endian */
-    {VA_FOURCC_XBGR,           VA_LSB_FIRST,   32, 24, 0x000000ff, 0x0000ff00, 0x00ff0000,  0},          /* [31:0] x:B:G:R 8:8:8:8 little endian */
     {VA_FOURCC_A2R10G10B10,    VA_LSB_FIRST,   32, 30, 0x3ff00000, 0x000ffc00, 0x000003ff,  0x30000000}, /* [31:0] A:R:G:B 2:10:10:10 little endian */
     {VA_FOURCC_A2B10G10R10,    VA_LSB_FIRST,   32, 30, 0x000003ff, 0x000ffc00, 0x3ff00000,  0x30000000}, /* [31:0] A:B:G:R 2:10:10:10 little endian */
     {VA_FOURCC_X2R10G10B10,    VA_LSB_FIRST,   32, 30, 0x3ff00000, 0x000ffc00, 0x000003ff,  0},          /* [31:0] X:R:G:B 2:10:10:10 little endian */
@@ -1698,7 +1690,7 @@ VAStatus MediaLibvaCapsMtlBase::AddEncSurfaceAttributes(
             attribList[numAttribs].value.value.i = VA_FOURCC('N', 'V', '1', '2');
             numAttribs++;
         }
-
+        
         if (profile == VAProfileAV1Profile0)
         {
             attribList[numAttribs].type          = VASurfaceAttribPixelFormat;
