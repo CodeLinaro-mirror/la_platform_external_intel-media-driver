@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2011-2020, Intel Corporation
+* Copyright (c) 2011-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -311,12 +311,26 @@ MOS_STATUS CodechalDecodeAvc::AllocateInvalidRefBuffer()
     {
         CODECHAL_DECODE_CHK_STATUS_RETURN(CodecHalGetResourceInfo(m_osInterface, &m_destSurface));
 
+        MOS_MEMCOMP_STATE mmcMode = MOS_MEMCOMP_DISABLED;
+#ifdef _MMC_SUPPORTED
+        if(m_mmc != nullptr && m_mmc->IsMmcEnabled())
+        {
+            CODECHAL_DECODE_CHK_STATUS_RETURN(
+            m_osInterface->pfnGetMemoryCompressionMode(
+                m_osInterface,
+                &m_destSurface.OsResource,
+                &mmcMode));
+        }
+#endif
+
         MOS_SURFACE surface;
         CODECHAL_DECODE_CHK_STATUS_MESSAGE_RETURN(AllocateSurface(
                                                       &surface,
                                                       m_destSurface.dwPitch,
                                                       m_destSurface.dwHeight,
-                                                      "InvalidRefBuffer"),
+                                                      "InvalidRefBuffer",
+                                                      Format_NV12,
+                                                      mmcMode != MOS_MEMCOMP_DISABLED ? true : false),
             "Failed to allocate invalid reference buffer.");
         m_resInvalidRefBuffer = surface.OsResource;
 
@@ -1619,28 +1633,23 @@ MOS_STATUS CodechalDecodeAvc::InitPicMhwParams(
                 uint8_t picID = picMhwParams->AvcDirectmodeParams.bPicIdRemappingInUse ? i : refList[idx]->ucFrameId;
                 uint8_t mvIdx = refList[idx]->ucDMVIdx[0];
 
-                if (&picMhwParams->AvcDirectmodeParams.presAvcDmvBuffers[i] != nullptr)
-                {
-                    // dump Reference mvdata
-                    std::string mvBufDumpName = "_DEC_Ref_MV_" + std::to_string(i);
-                    CODECHAL_DECODE_CHK_STATUS_RETURN(m_debugInterface->DumpBuffer(
-                        &picMhwParams->AvcDirectmodeParams.presAvcDmvBuffers[mvIdx],
-                        CodechalDbgAttr::attrMvData,
-                        mvBufDumpName.c_str(),
-                        m_avcDmvBufferSize));
-                }
+                // dump Reference mvdata
+                std::string mvBufDumpName = "_DEC_Ref_MV_" + std::to_string(i);
+                CODECHAL_DECODE_CHK_STATUS_RETURN(m_debugInterface->DumpBuffer(
+                    &picMhwParams->AvcDirectmodeParams.presAvcDmvBuffers[mvIdx],
+                    CodechalDbgAttr::attrMvData,
+                    mvBufDumpName.c_str(),
+                    m_avcDmvBufferSize));
             }
         }
 
-        if (&picMhwParams->AvcDirectmodeParams.presAvcDmvBuffers[picMhwParams->AvcDirectmodeParams.ucAvcDmvIdx])
-        {
-            // dump Current mvdata
-            CODECHAL_DECODE_CHK_STATUS_RETURN(m_debugInterface->DumpBuffer(
-            &picMhwParams->AvcDirectmodeParams.presAvcDmvBuffers[picMhwParams->AvcDirectmodeParams.ucAvcDmvIdx],
-                CodechalDbgAttr::attrMvData,
-                "DEC_Cur_MV_",
-                m_avcDmvBufferSize));
-        });
+        // dump Current mvdata
+        CODECHAL_DECODE_CHK_STATUS_RETURN(m_debugInterface->DumpBuffer(
+        &picMhwParams->AvcDirectmodeParams.presAvcDmvBuffers[picMhwParams->AvcDirectmodeParams.ucAvcDmvIdx],
+            CodechalDbgAttr::attrMvData,
+            "DEC_Cur_MV_",
+            m_avcDmvBufferSize));
+        );
 
     return eStatus;
 }
