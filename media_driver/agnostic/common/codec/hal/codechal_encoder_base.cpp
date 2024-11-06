@@ -4564,7 +4564,7 @@ MOS_STATUS CodechalEncoderState::UserFeatureKeyReport()
 
 MOS_STATUS CodechalEncoderState::SubmitCommandBuffer(
     PMOS_COMMAND_BUFFER cmdBuffer,
-    int32_t         nullRendering)
+    bool         bNullRendering)
 {
     MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
 
@@ -4573,7 +4573,7 @@ MOS_STATUS CodechalEncoderState::SubmitCommandBuffer(
     CODECHAL_ENCODE_CHK_NULL_RETURN(cmdBuffer);
 
     HalOcaInterface::On1stLevelBBEnd(*cmdBuffer, *m_osInterface);
-    CODECHAL_ENCODE_CHK_STATUS_RETURN(m_osInterface->pfnSubmitCommandBuffer(m_osInterface, cmdBuffer, nullRendering));
+    CODECHAL_ENCODE_CHK_STATUS_RETURN(m_osInterface->pfnSubmitCommandBuffer(m_osInterface, cmdBuffer, bNullRendering));
     return eStatus;
 }
 
@@ -5337,16 +5337,23 @@ MOS_STATUS CodechalEncoderState::SetupWalkerContext(
             params->pKernelState->KernelParams.iCurbeLength);
     }
 
+    uint32_t InterfaceDescriptorTotalLength = m_stateHeapInterface->pStateHeapInterface->GetSizeofCmdInterfaceDescriptorData();
+    uint32_t InterfaceDescriptorDataStartOffset = MOS_ALIGN_CEIL(
+        params->pKernelState->m_dshRegion.GetOffset() + params->pKernelState->dwIdOffset,
+        m_stateHeapInterface->pStateHeapInterface->GetIdAlignment());
+    
+    // Media_State_Flush should be used before MEDIA_INTERFACE_DESCRIPTOR_LOAD to ensure that the temporary Interface Descriptor storage is cleared
+    MHW_MEDIA_STATE_FLUSH_PARAM mediaStateFlushParams;
+    MOS_ZeroMemory(&mediaStateFlushParams, sizeof(mediaStateFlushParams));
+    mediaStateFlushParams.bFlushToGo = true;
+    mediaStateFlushParams.ui8InterfaceDescriptorOffset = (uint8_t)InterfaceDescriptorDataStartOffset;
+    CODECHAL_ENCODE_CHK_STATUS_RETURN(m_miInterface->AddMediaStateFlush(cmdBuffer, nullptr, &mediaStateFlushParams));
+
     MHW_ID_LOAD_PARAMS idLoadParams;
     MOS_ZeroMemory(&idLoadParams, sizeof(idLoadParams));
     idLoadParams.pKernelState = params->pKernelState;
     idLoadParams.dwNumKernelsLoaded = 1;
     CODECHAL_ENCODE_CHK_STATUS_RETURN(m_renderEngineInterface->AddMediaIDLoadCmd(cmdBuffer, &idLoadParams));
-
-    uint32_t InterfaceDescriptorTotalLength = m_stateHeapInterface->pStateHeapInterface->GetSizeofCmdInterfaceDescriptorData();
-    uint32_t InterfaceDescriptorDataStartOffset = MOS_ALIGN_CEIL(
-        params->pKernelState->m_dshRegion.GetOffset() + params->pKernelState->dwIdOffset,
-        m_stateHeapInterface->pStateHeapInterface->GetIdAlignment());
 
     HalOcaInterface::OnIndirectState(
         *cmdBuffer,
