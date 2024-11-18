@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2023, Intel Corporation
+* Copyright (c) 2019-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -71,10 +71,16 @@ namespace decode {
         PMOS_RESOURCE           currHistogramOutBuf = nullptr;
         //! \brief Applies when debug dumps are enabled, pointer to AV1 film grain output resource for the picture associated with this status report
         PMOS_RESOURCE           currFgOutputPicRes = nullptr;
-        //! \brief Applies when debug dumps are enabled, stream out buffer
+        //! \brief Applies when debug dumps are enabled, stream out buffer (legacy)
         PMOS_RESOURCE           streamOutBuf = nullptr;
-        //! \brief Applies when debug dumps are enabled, index of the streamout buffer
+        //! \brief Applies when debug dumps are enabled, index of the streamout buffer (legacy)
         uint32_t                streamoutIdx = 0;
+        //! \brief Applies when debug dumps are enabled, stream in buffer
+        MOS_RESOURCE            streamInBufRes = { 0 };
+        //! \brief Applies when debug dumps are enabled, stream out buffer
+        MOS_RESOURCE            streamOutBufRes = { 0 };
+        //! \brief Applies when debug dumps are enabled, stream size
+        uint32_t                streamSize = 0;
         //! \brief Applies when debug dumps are enabled, indicates whether or not this is the final field in the frame.
         bool                    secondField = false;
         //! \brief Applies to VC1 only, indicates whether or not the frame required OLP.
@@ -158,10 +164,16 @@ namespace decode {
         virtual MOS_STATUS SetStatus(void *report, uint32_t index, bool outOfRange = false) override;
 
         //!
+        //! \brief  Set size for Mfx status buffer.
+        //! \return void
+        //!
+        virtual void SetSizeForStatusBuf();
+
+        //!
         //! \brief  Set offsets for Mfx status buffer.
         //! \return void
         //!
-        void SetOffsetsForStatusBuf();
+        virtual void SetOffsetsForStatusBuf();
 
         //!
         //! \brief  Update the status result of current report.
@@ -187,8 +199,8 @@ namespace decode {
         DecodeStatusReportData m_statusReportData[m_statusNum] = {};
 
         const uint32_t         m_completedCountSize = sizeof(uint32_t) * 2;
-        const uint32_t         m_statusBufSizeMfx   = MOS_ALIGN_CEIL(sizeof(DecodeStatusMfx), sizeof(uint64_t));
-        const uint32_t         m_statusBufSizeRcs   = MOS_ALIGN_CEIL(sizeof(DecodeStatusRcs), sizeof(uint64_t));
+        uint32_t               m_statusBufSizeMfx   = 0;
+        uint32_t               m_statusBufSizeRcs   = 0;
 
         PMOS_BUFFER            m_statusBufMfx = nullptr;
         PMOS_BUFFER            m_statusBufRcs = nullptr;

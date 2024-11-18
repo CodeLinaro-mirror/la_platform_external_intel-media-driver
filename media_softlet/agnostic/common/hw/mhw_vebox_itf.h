@@ -80,6 +80,8 @@ public:
 
     virtual MOS_STATUS SetDisableHistogram(PMHW_VEBOX_IECP_PARAMS pVeboxIecpParams) = 0;
 
+    virtual MOS_STATUS SetAlphaFromStateSelect(PMHW_VEBOX_IECP_PARAMS pVeboxIecpParams) = 0;
+
     virtual MOS_STATUS SetVeboxLaceColorParams(MHW_LACE_COLOR_CORRECTION *pLaceColorParams)  = 0;
 
     virtual MOS_STATUS SetVeboxIecpAceState(PMHW_VEBOX_IECP_PARAMS pVeboxIecpParams) = 0;
@@ -109,6 +111,8 @@ public:
     virtual bool IsVeboxScalabilitywith4K() = 0;
 
     virtual MOS_STATUS Add1DLutState(void *&surface, PMHW_1DLUT_PARAMS p1DLutParams) = 0;
+
+    virtual MOS_STATUS AddFP16State(PMHW_FP16_PARAMS pFP16Params) = 0;
 
     _VEBOX_CMD_DEF(_MHW_CMD_ALL_DEF_FOR_ITF);
 
