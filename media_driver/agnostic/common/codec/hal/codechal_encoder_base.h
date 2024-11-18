@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017-2023, Intel Corporation
+* Copyright (c) 2017-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -875,6 +875,25 @@ struct EncodeStatusReport
         uint32_t reserved[8];
     };
 
+    struct BLOCK_SSIM_INFO 
+    {
+        uint32_t NumBlockInColumns;
+        uint32_t NumBlockInRows;
+        uint8_t* BlockSsimArray;
+        uint32_t reserved1[2];
+        uint64_t reserved2[2];
+    };
+
+    struct BLOCK_QUALITY_INFO
+    {
+        BLOCK_SSIM_INFO BlockSsim2DS;
+        BLOCK_SSIM_INFO BlockSsim4DS;
+        BLOCK_SSIM_INFO BlockSsim8DS;
+        BLOCK_SSIM_INFO BlockSsim16DS;
+        uint32_t        reserved1[32];
+        uint64_t        reserved2[12];
+    };
+
     CODECHAL_STATUS                 CodecStatus;            //!< Status for the picture associated with this status report
     uint32_t                        StatusReportNumber;     //!< Status report number associated with the picture in this status report provided in CodechalEncoderState::Execute()
     CODEC_PICTURE                   CurrOriginalPic;        //!< Uncompressed frame information for the picture associated with this status report
@@ -953,6 +972,9 @@ struct EncodeStatusReport
 
     uint32_t                        reserved[4];            //!< align with apo path hal structure EncodeStatusReportData
 
+    uint32_t                        MSE[3];
+    
+    BLOCK_QUALITY_INFO*             pBlkQualityInfo;
 };
 
 //!
@@ -1405,6 +1427,8 @@ public:
     uint32_t                        m_frameHeight = 0;            //!< Frame height in luma samples
     uint32_t                        m_frameFieldHeight = 0;       //!< Frame height in luma samples
     uint32_t                        m_oriFrameHeight = 0;         //!< Original frame height
+    uint16_t                        m_frame_crop_bottom_offset = 0;       //!< frame_crop_bottom_offset
+    uint16_t                        m_frame_mbs_only_flag      = 0;         //!< frame_mbs_only_flag
     uint32_t                        m_oriFrameWidth = 0;          //!< Original frame width
     uint32_t                        m_createWidth = 0;            //!< Max Frame Width for resolution reset
     uint32_t                        m_createHeight = 0;           //!< Max Frame Height for resolution reset
@@ -1891,7 +1915,7 @@ public:
     //!
     virtual MOS_STATUS SubmitCommandBuffer(
         PMOS_COMMAND_BUFFER cmdBuffer,
-        int32_t             nullRendering);
+        bool             bNullRendering);
 
     //!
     //! \brief  Check Supported Format
