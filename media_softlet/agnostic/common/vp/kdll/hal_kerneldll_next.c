@@ -2594,6 +2594,7 @@ bool KernelDll_SetupCSC(
                 // Exceeded number of CSC matrices allowed
                 if (matrix_count == DL_CSC_MAX)
                 {
+                    VP_RENDER_ASSERTMESSAGE("CSC matrix count %d exceeded number of CSC matrices allowed!", matrix_count);
                     return false;
                 }
 
@@ -2689,7 +2690,8 @@ static uint8_t *KernelDll_GetPatchData(
                 }
                 else
                 {
-                    VP_RENDER_NORMALMESSAGE("Patch CSC coefficient exceed limitation");
+                    VP_RENDER_ASSERTMESSAGE("Patch CSC coefficient number %d exceed limitation %d!", pSearchState->CscParams.PatchMatrixNum, DL_CSC_MAX);
+                    return nullptr;
                 }
             }
 
@@ -2698,7 +2700,7 @@ static uint8_t *KernelDll_GetPatchData(
     }
     else
     {
-        VP_RENDER_NORMALMESSAGE("Invalid patch kind %d.", iPatchKind);
+        VP_RENDER_ASSERTMESSAGE("Invalid patch kind %d.", iPatchKind);
     }
 
     return nullptr;
@@ -3930,7 +3932,7 @@ bool KernelDll_BuildKernel_CmFc(Kdll_State *pState, Kdll_SearchState *pSearchSta
     VP_RENDER_FUNCTION_ENTER;
 
     // Disable pop-up box window for STL assertion to avoid VM hang in auto test.
-#if (!LINUX) && (!ANDROID)
+#if (!LINUX && !ANDROID)
     uint32_t prevErrorMode = ::SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 #if defined(_MSC_VER)
     ::_set_error_mode(_OUT_TO_STDERR);
@@ -4060,7 +4062,7 @@ bool KernelDll_BuildKernel_CmFc(Kdll_State *pState, Kdll_SearchState *pSearchSta
     res = true;
 
 finish:
-#if (!LINUX) && (!ANDROID)
+#if (!LINUX && !ANDROID)
     ::SetErrorMode(prevErrorMode);
 #endif
     return res;
