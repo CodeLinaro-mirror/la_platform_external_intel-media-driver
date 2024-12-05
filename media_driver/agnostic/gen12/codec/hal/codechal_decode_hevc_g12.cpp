@@ -1619,7 +1619,8 @@ MOS_STATUS CodechalDecodeHevcG12::SendPictureLongFormat()
         if ((!m_shortFormatInUse && !CodecHalDecodeScalabilityIsFESeparateSubmission(m_scalabilityState) &&
                 !m_isRealTile) ||
             CodecHalDecodeScalabilityIsBEPhaseG12(m_scalabilityState) ||
-            CodecHalDecodeScalabilityIsFirstRealTilePhase(m_scalabilityState))
+            CodecHalDecodeScalabilityIsFirstRealTilePhase(m_scalabilityState) ||
+            (m_secureDecoder != nullptr && m_osInterface->phasedSubmission))
         {
             MHW_MI_FORCE_WAKEUP_PARAMS forceWakeupParams;
             MOS_ZeroMemory(&forceWakeupParams, sizeof(MHW_MI_FORCE_WAKEUP_PARAMS));
@@ -2189,10 +2190,19 @@ MOS_STATUS CodechalDecodeHevcG12::DecodePrimitiveLevel()
             }
             else
             {
+                std::string packetName = "";
+                if (m_shortFormatInUse)
+                {
+                    packetName = "_S2L_DECODE_PASS0__0";
+                }
+                else
+                {
+                    packetName = "_DEC";
+                }
                 CODECHAL_DECODE_CHK_STATUS_RETURN(m_debugInterface->DumpCmdBuffer(
                     &primCmdBuffer,
                     CODECHAL_NUM_MEDIA_STATES,
-                    "_DEC"));
+                    packetName.c_str()));
             }
         });
 
