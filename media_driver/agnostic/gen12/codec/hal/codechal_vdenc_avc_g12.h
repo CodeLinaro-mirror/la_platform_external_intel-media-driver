@@ -68,6 +68,8 @@ class CodechalVdencAvcStateG12 : public CodechalVdencAvcState
 
     MOS_STATUS SetPictureStructs() override;
 
+    MOS_STATUS ExecutePictureLevel() override;
+
     MOS_STATUS GetTrellisQuantization(
         PCODECHAL_ENCODE_AVC_TQ_INPUT_PARAMS params,
         PCODECHAL_ENCODE_AVC_TQ_PARAMS       trellisQuantParams) override;
@@ -97,7 +99,7 @@ class CodechalVdencAvcStateG12 : public CodechalVdencAvcState
 
     MOS_STATUS SubmitCommandBuffer(
         PMOS_COMMAND_BUFFER cmdBuffer,
-        int32_t             nullRendering) override;
+        bool             bNullRendering) override;
 
     MOS_STATUS InitKernelStateSFD() override;
 
