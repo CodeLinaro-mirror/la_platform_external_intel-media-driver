@@ -156,7 +156,7 @@ MOS_STATUS AvcPipelineM12::Initialize(void *settings)
     m_decodecp = Create_DecodeCpInterface(codecSettings, m_hwInterface->GetCpInterface(), m_hwInterface->GetOsInterface());
     if (m_decodecp)
     {
-        m_decodecp->RegisterParams(codecSettings);
+        DECODE_CHK_STATUS(m_decodecp->RegisterParams(codecSettings));
     }
     DECODE_CHK_STATUS(CreateFeatureManager());
     DECODE_CHK_STATUS(m_featureManager->Init(codecSettings));
@@ -315,6 +315,13 @@ MOS_STATUS AvcPipelineM12::Prepare(void *params)
             inputParameters.currDecodedPicRes          = m_basicFeature->m_destSurface.OsResource;
             inputParameters.isSecondField              = m_basicFeature->m_secondField;
             inputParameters.numUsedVdbox               = m_numVdbox;
+
+            CODECHAL_DEBUG_TOOL(
+                if (m_streamout != nullptr)  
+                {  
+                    DECODE_CHK_STATUS(m_streamout->InitStatusReportParam(inputParameters));  
+                }  
+            );
 
 #ifdef _DECODE_PROCESSING_SUPPORTED
             CODECHAL_DEBUG_TOOL(
