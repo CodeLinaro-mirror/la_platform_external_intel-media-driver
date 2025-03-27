@@ -9,12 +9,12 @@ third_party {
   last_upgrade_date {
     year: 2025
     month: 3
-    day: 10
+    day: 26
   }
   identifier {
     type: "Git"
     value: "https://github.com/intel/media-driver"
-    version: "intel-media-24.4.4"
+    version: "intel-media-25.1.4"
     primary_source: true
   }
 }
