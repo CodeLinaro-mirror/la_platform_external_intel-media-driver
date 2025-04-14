@@ -99,6 +99,7 @@ typedef struct _KERNEL_PARAMS
     bool                         flushL1;
     KERNEL_TUNING_PARAMS         kernelTuningParams;
     KERNEL_ARG_INDEX_SURFACE_MAP kernelStatefulSurfaces;
+    std::string                  kernelName;
 } KERNEL_PARAMS;
 
 struct MEDIA_OBJECT_KA2_INLINE_DATA
@@ -568,7 +569,7 @@ protected:
 
     virtual MOS_STATUS SetupStatelessBuffer();
 
-    virtual MOS_STATUS SetupStatelessBufferResource(SurfaceType surf);
+    virtual MOS_STATUS SetupStatelessBufferResource(SurfaceType surf, bool isWrite);
 
     virtual MOS_STATUS GetCurbeState(void *&curbe, uint32_t &curbeLength) = 0;
 
@@ -608,6 +609,8 @@ protected:
 
     std::shared_ptr<mhw::vebox::Itf>                        m_veboxItf = nullptr;
     std ::vector<MHW_INLINE_DATA_PARAMS>                    m_inlineDataParams = {};
+
+    KERNEL_ARG_INDEX_SURFACE_MAP                            m_argIndexSurfMap = {};
 
 MEDIA_CLASS_DEFINE_END(vp__VpRenderKernelObj)
 };
